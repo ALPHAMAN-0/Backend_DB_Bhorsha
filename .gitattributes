@@ -1,0 +1,5 @@
+# Keep LF endings so the SQL/JSON mounted into Linux containers behave the same on Windows.
+*.sql  text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.sh   text eol=lf

@@ -1,0 +1,6 @@
+# Build context is ./db — send only what the image needs.
+*
+!init/*.sql
+!scripts/*.sql
+!build-verify.sh
+!Dockerfile

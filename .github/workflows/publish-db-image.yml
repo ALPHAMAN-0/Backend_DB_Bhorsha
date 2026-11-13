@@ -1,0 +1,75 @@
+# Builds the bhorsha-db image and publishes it to Docker Hub.
+#
+#   Pull request touching db/**  -> build + verify gate only (nothing pushed)
+#   Tag db-vX.Y.Z                -> multi-arch build, push X.Y.Z, X.Y and latest
+#   Manual run                   -> push sha-<commit> (for testing a branch)
+#
+# One-time setup in GitHub repo Settings -> Secrets and variables -> Actions:
+#   Variable  DOCKERHUB_USERNAME   your Docker Hub user/org (a variable, so it can appear in image tags)
+#   Secret    DOCKERHUB_TOKEN      Docker Hub personal access token with Read & Write scope
+name: Publish bhorsha-db image
+
+on:
+  push:
+    tags: ['db-v*.*.*']
+  pull_request:
+    paths: ['db/**', '.github/workflows/publish-db-image.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-db-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    env:
+      PUSH: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: docker.io/${{ vars.DOCKERHUB_USERNAME }}/bhorsha-db
+          tags: |
+            type=match,pattern=db-v(\d+\.\d+\.\d+),group=1
+            type=match,pattern=db-v(\d+\.\d+)\.\d+,group=1
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/db-v') }}
+            type=sha,prefix=sha-,enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=ref,event=pr
+          labels: |
+            org.opencontainers.image.title=bhorsha-db
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        if: env.PUSH == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # The Dockerfile's verify stage loads schema + seed and runs verify.sql and
+      # constraint-tests.sql; any failure stops the job before anything is pushed.
+      # Only the verify stage executes code, on the runner's native platform, so
+      # arm64 needs no QEMU.
+      - name: Build (and push)
+        uses: docker/build-push-action@v7
+        with:
+          context: ./db
+          platforms: linux/amd64,linux/arm64
+          push: ${{ env.PUSH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

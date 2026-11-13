@@ -1,0 +1,25 @@
+# Bhorsha — run the PUBLISHED database image from Docker Hub (no build, no SQL files needed).
+# For frontend devs, testers and the viva machine. Needs only this file + a .env with:
+#   POSTGRES_PASSWORD=<anything>
+#   DB_IMAGE=siam001/bhorsha-db:2.0.0        (optional; this is the default)
+#
+#   docker compose -f docker-compose.hub.yml pull
+#   docker compose -f docker-compose.hub.yml up -d
+#   docker compose -f docker-compose.hub.yml down -v     # wipe -> fresh seed on next up
+name: bhorsha
+
+services:
+  db:
+    # Pinned version, so everyone runs the same schema. Image: https://hub.docker.com/r/siam001/bhorsha-db
+    image: ${DB_IMAGE:-siam001/bhorsha-db:2.0.0}
+    container_name: bhorsha-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

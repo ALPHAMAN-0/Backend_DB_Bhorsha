@@ -1,0 +1,23 @@
+# Bhorsha database: runs the published image from Docker Hub. Needs only this file and .env.
+#   docker compose up -d       start (first run downloads the image and loads tables + demo data)
+#   docker compose ps          wait until bhorsha-db shows "(healthy)"
+#   docker compose down        stop (data is kept)
+#   docker compose down -v     stop and DELETE the data (the next "up" loads a fresh seed)
+# Connect: host localhost, port DB_PORT (5433), database bhorsha, user bhorsha, password from .env
+name: bhorsha
+
+services:
+  db:
+    # Set DB_IMAGE in .env to pin a version, e.g. siam001/bhorsha-db:2.0.0
+    image: ${DB_IMAGE:-siam001/bhorsha-db:latest}
+    container_name: bhorsha-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

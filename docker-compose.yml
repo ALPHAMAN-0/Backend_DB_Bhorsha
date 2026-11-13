@@ -1,0 +1,48 @@
+# Bhorsha — local database stack for BACKEND developers (builds the image from ./db).
+# Everyone else: use docker-compose.hub.yml, which pulls the published image from Docker Hub.
+#
+#   docker compose up -d --build      build bhorsha-db (runs the verify gate), start Postgres + pgAdmin
+#   docker compose down -v            stop and DELETE the data (next "up" creates tables + seed again)
+name: bhorsha
+
+services:
+  db:
+    # Same Dockerfile CI publishes to Docker Hub, so local == published.
+    # Schema, seed, healthcheck and the slow-query log setting are baked into the image.
+    build:
+      context: ./db
+    image: bhorsha-db:dev
+    container_name: bhorsha-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bhorsha}
+      POSTGRES_USER: ${POSTGRES_USER:-bhorsha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.example to .env and set POSTGRES_PASSWORD}
+    ports:
+      # Host 5433 -> container 5432, so it never clashes with a locally installed PostgreSQL.
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    container_name: bhorsha-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      # Desktop mode: no pgAdmin login screen (local development only).
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  pgadmin-data:
